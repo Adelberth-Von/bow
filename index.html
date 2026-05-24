@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dark Archer: 10 Levels</title>
+  <title>Bow</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,8 +12,8 @@
       <div class="brand">
         <span class="brand-mark"></span>
         <div>
-          <h1>Dark Archer</h1>
-          <p>10 Levels</p>
+          <h1>Bow</h1>
+          <p>Dark Ragdoll Archer</p>
         </div>
       </div>
 
@@ -22,29 +22,32 @@
         <div class="stat"><span>Score</span><strong id="scoreText">0</strong></div>
         <div class="stat"><span>Streak</span><strong id="streakText">0</strong></div>
         <div class="stat"><span>Attempts</span><strong id="attemptText">0</strong></div>
+        <div class="stat hp-stat"><span>Enemy HP</span><strong id="enemyHpText">60</strong></div>
       </div>
 
       <div class="actions">
         <button id="restartBtn" type="button">Restart Level</button>
         <button id="resetBtn" type="button">Reset Game</button>
+        <button id="pauseBtn" type="button">Pause</button>
       </div>
     </section>
 
     <section class="canvas-wrap">
-      <canvas id="gameCanvas" width="960" height="540" aria-label="Dark Archer game canvas"></canvas>
+      <canvas id="gameCanvas" width="1280" height="720" aria-label="Bow game canvas"></canvas>
+      <p class="rotate-note">Rotate your device for best experience</p>
 
       <div id="menuOverlay" class="overlay">
         <div class="overlay-panel">
-          <p class="eyebrow">Mini Arcade</p>
-          <h2>Dark Archer: 10 Levels</h2>
-          <p class="copy">Drag behind the bow, release, and let gravity decide how legendary your shot feels.</p>
+          <p class="eyebrow">Physics Archer</p>
+          <h2>Dark Ragdoll Archer</h2>
+          <p class="copy">Drag backward to aim, release to shoot.</p>
           <button id="startBtn" type="button" class="primary">Start Game</button>
         </div>
       </div>
 
       <div id="messageOverlay" class="message-overlay hidden">
         <h2 id="messageTitle">Level Complete!</h2>
-        <p id="messageBody">Nice shot.</p>
+        <p id="messageBody">Score: 0</p>
         <button id="nextBtn" type="button" class="primary">Next Level</button>
       </div>
     </section>
