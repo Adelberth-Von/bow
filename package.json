@@ -1,5 +1,5 @@
 {
-  "name": "physics-bow-duel",
+  "name": "block-drop-puzzle",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,9 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0"
   },
-  "dependencies": {
-    "phaser": "^3.90.0"
-  },
+  "dependencies": {},
   "devDependencies": {
     "typescript": "^5.8.3",
     "vite": "^6.3.5"
