@@ -7,6 +7,7 @@ const levelText = document.getElementById("levelText");
 const scoreText = document.getElementById("scoreText");
 const streakText = document.getElementById("streakText");
 const attemptText = document.getElementById("attemptText");
+const playerHpText = document.getElementById("playerHpText");
 const enemyHpText = document.getElementById("enemyHpText");
 const menuOverlay = document.getElementById("menuOverlay");
 const messageOverlay = document.getElementById("messageOverlay");
@@ -29,16 +30,16 @@ const ARROW_LENGTH = 68;
 const AIM_EASE = 0.22;
 
 const levels = [
-  { enemyX: 780, platformY: 570, hp: 60, scale: 1, obstacles: [] },
-  { enemyX: 860, platformY: 570, hp: 70, scale: 1, obstacles: [] },
-  { enemyX: 900, platformY: 520, hp: 80, scale: 1, obstacles: [] },
-  { enemyX: 980, platformY: 500, hp: 90, scale: 1, obstacles: [] },
-  { enemyX: 940, platformY: 570, hp: 100, scale: 1, obstacles: [{ x: 585, y: 398, w: 46, h: 172 }] },
-  { enemyX: 955, platformY: 458, hp: 110, scale: 1, obstacles: [{ x: 640, y: 350, w: 54, h: 178 }] },
-  { enemyX: 1040, platformY: 545, hp: 120, scale: 0.92, obstacles: [{ x: 675, y: 440, w: 52, h: 130 }] },
-  { enemyX: 1000, platformY: 485, hp: 130, scale: 0.96, obstacles: [{ x: 565, y: 470, w: 52, h: 112 }, { x: 760, y: 292, w: 46, h: 118 }] },
-  { enemyX: 1080, platformY: 455, hp: 150, scale: 0.94, obstacles: [{ x: 600, y: 428, w: 54, h: 150 }, { x: 825, y: 250, w: 54, h: 138 }] },
-  { enemyX: 1060, platformY: 530, hp: 220, scale: 1.16, boss: true, obstacles: [{ x: 645, y: 410, w: 56, h: 162 }, { x: 850, y: 214, w: 58, h: 154 }] }
+  { enemyX: 780, platformY: 570, hp: 60, scale: 1, aiDelay: 0, obstacles: [] },
+  { enemyX: 860, platformY: 570, hp: 70, scale: 1, aiDelay: 4.8, obstacles: [] },
+  { enemyX: 900, platformY: 520, hp: 80, scale: 1, aiDelay: 4.5, obstacles: [] },
+  { enemyX: 980, platformY: 500, hp: 90, scale: 1, aiDelay: 4.2, obstacles: [] },
+  { enemyX: 940, platformY: 570, hp: 100, scale: 1, aiDelay: 4, obstacles: [{ x: 585, y: 398, w: 46, h: 172 }] },
+  { enemyX: 955, platformY: 458, hp: 110, scale: 1, aiDelay: 3.8, obstacles: [{ x: 640, y: 350, w: 54, h: 178 }] },
+  { enemyX: 1040, platformY: 545, hp: 120, scale: 0.92, aiDelay: 3.5, obstacles: [{ x: 675, y: 440, w: 52, h: 130 }] },
+  { enemyX: 1000, platformY: 485, hp: 130, scale: 0.96, aiDelay: 3.3, obstacles: [{ x: 565, y: 470, w: 52, h: 112 }, { x: 760, y: 292, w: 46, h: 118 }] },
+  { enemyX: 1080, platformY: 455, hp: 150, scale: 0.94, aiDelay: 3, obstacles: [{ x: 600, y: 428, w: 54, h: 150 }, { x: 825, y: 250, w: 54, h: 138 }] },
+  { enemyX: 1060, platformY: 530, hp: 220, scale: 1.16, aiDelay: 2.6, boss: true, obstacles: [{ x: 645, y: 410, w: 56, h: 162 }, { x: 850, y: 214, w: 58, h: 154 }] }
 ];
 
 const state = {
@@ -48,8 +49,12 @@ const state = {
   streak: 0,
   attempts: 0,
   totalAttempts: 0,
+  playerHp: 100,
+  playerHitReact: 0,
+  enemyShootTimer: 0,
   enemy: null,
   arrow: null,
+  enemyArrows: [],
   stuckArrows: [],
   particles: [],
   feedback: [],
@@ -90,6 +95,8 @@ function startGame() {
   state.streak = 0;
   state.attempts = 0;
   state.totalAttempts = 0;
+  state.playerHp = 100;
+  state.playerHitReact = 0;
   loadLevel(0);
   menuOverlay.classList.add("hidden");
   hideMessage();
@@ -110,6 +117,7 @@ function loadLevel(levelIndex) {
     headKnock: { x: 0, y: 0 }
   };
   state.arrow = null;
+  state.enemyArrows = [];
   state.stuckArrows = [];
   state.particles = [];
   state.feedback = [];
@@ -119,6 +127,9 @@ function loadLevel(levelIndex) {
   state.pointerPoint = null;
   state.easedPull = { x: 0, y: 0, length: 0 };
   state.playerRecoil = 0;
+  state.playerHp = Math.max(70, Math.min(100, state.playerHp + 28));
+  state.playerHitReact = 0;
+  state.enemyShootTimer = level.aiDelay ? level.aiDelay * 0.62 : 0;
   state.screenShake = 0;
   updateHud();
 }
@@ -139,6 +150,8 @@ function resetGame() {
   state.streak = 0;
   state.attempts = 0;
   state.totalAttempts = 0;
+  state.playerHp = 100;
+  state.playerHitReact = 0;
   loadLevel(0);
   menuOverlay.classList.remove("hidden");
   hideMessage();
@@ -187,6 +200,7 @@ function update(deltaTime) {
   updateAimEasing();
   if (state.mode === "playing") {
     updateArrow(deltaTime);
+    updateEnemyArrows(deltaTime);
     updateEnemy(deltaTime);
   }
   updateEffects(deltaTime);
@@ -213,10 +227,12 @@ function draw() {
   drawEnemy();
   drawTrajectoryPreview();
   drawArrow(state.arrow);
+  for (const enemyArrow of state.enemyArrows) drawArrow(enemyArrow);
   for (const stuck of state.stuckArrows) drawArrow(stuck);
   drawParticles();
   drawFeedback();
   drawMissBanner();
+  drawPlayerHpBar();
   drawEnemyHpBar();
   drawAimMeter();
 }
@@ -278,7 +294,8 @@ function drawPlatform(x, y, width, color) {
 
 function drawPlayer() {
   const t = performance.now() / 1000;
-  const joints = getStickmanJoints(player.x - state.playerRecoil * 10, player.platformY, 1, 1, Math.sin(t * 2.5) * 2, 0, false);
+  const hurtLean = -state.playerHitReact * 0.2;
+  const joints = getStickmanJoints(player.x - state.playerRecoil * 10, player.platformY, 1, 1, Math.sin(t * 2.5) * 2, hurtLean, false);
   drawStickman(joints, {
     skin: "#f4f7fb",
     line: "#e7edf7",
@@ -299,6 +316,33 @@ function drawEnemy() {
     joint: "#ff4f5f",
     head: enemy.boss ? "#ffd6d6" : "#f4f7fb"
   });
+  drawEnemyBow(joints);
+}
+
+function drawEnemyBow(joints) {
+  const level = levels[state.levelIndex];
+  if (!level.aiDelay || state.enemy.hp <= 0) return;
+  const charge = 1 - clamp(state.enemyShootTimer / level.aiDelay, 0, 1);
+  const origin = { x: joints.leftHand.x - 14, y: joints.leftHand.y - 10 };
+
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.strokeStyle = "#ff4f5f";
+  ctx.shadowColor = "#ff4f5f";
+  ctx.shadowBlur = 10 + charge * 10;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(origin.x - 10, origin.y, 42, Math.PI * 0.45, Math.PI * 1.55);
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(244, 247, 251, 0.85)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(origin.x - 10, origin.y - 35);
+  ctx.lineTo(origin.x + 22 + charge * 18, origin.y);
+  ctx.lineTo(origin.x - 10, origin.y + 35);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawStickman(j, colors) {
@@ -394,14 +438,14 @@ function drawArrow(arrow) {
   ctx.translate(arrow.x, arrow.y);
   ctx.rotate(arrow.angle);
   ctx.lineCap = "round";
-  ctx.strokeStyle = "#f4f7fb";
+  ctx.strokeStyle = arrow.team === "enemy" ? "#ffd6d6" : "#f4f7fb";
   ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.moveTo(-ARROW_LENGTH / 2, 0);
   ctx.lineTo(ARROW_LENGTH / 2 - 10, 0);
   ctx.stroke();
 
-  ctx.fillStyle = "#ffbf4d";
+  ctx.fillStyle = arrow.team === "enemy" ? "#ff4f5f" : "#ffbf4d";
   ctx.beginPath();
   ctx.moveTo(ARROW_LENGTH / 2, 0);
   ctx.lineTo(ARROW_LENGTH / 2 - 15, -7);
@@ -410,7 +454,7 @@ function drawArrow(arrow) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = "#61b6ff";
+  ctx.strokeStyle = arrow.team === "enemy" ? "#ffbf4d" : "#61b6ff";
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(-ARROW_LENGTH / 2 + 8, 0);
@@ -512,6 +556,87 @@ function updateArrow(deltaTime) {
   updateStuckArrows(deltaTime);
 }
 
+function updateEnemyArrows(deltaTime) {
+  const level = levels[state.levelIndex];
+  if (level.aiDelay && state.enemy.hp > 0 && state.mode === "playing") {
+    state.enemyShootTimer -= deltaTime;
+    if (state.enemyShootTimer <= 0) {
+      fireEnemyArrow();
+      state.enemyShootTimer = level.aiDelay + Math.random() * 0.55;
+    }
+  }
+
+  for (const arrow of state.enemyArrows) {
+    if (arrow.stuck) {
+      arrow.stuckTimer -= deltaTime;
+      continue;
+    }
+
+    arrow.life += deltaTime;
+    arrow.vx += arrow.ax * deltaTime;
+    arrow.vy += arrow.ay * deltaTime;
+    arrow.vx *= AIR_DRAG;
+    arrow.vy *= AIR_DRAG;
+    arrow.x += arrow.vx * deltaTime;
+    arrow.y += arrow.vy * deltaTime;
+    arrow.angle = Math.atan2(arrow.vy, arrow.vx);
+    arrow.trail.push({ x: arrow.x, y: arrow.y });
+    if (arrow.trail.length > 14) arrow.trail.shift();
+
+    const tip = getArrowTip(arrow);
+    for (const obstacle of level.obstacles) {
+      if (pointInRect(tip, obstacle)) {
+        arrow.stuck = true;
+        arrow.stuckTimer = 0.6;
+        createParticles(tip.x, tip.y, "#ffbf4d");
+      }
+    }
+
+    if (!arrow.stuck) {
+      const hit = getPlayerHit(tip);
+      if (hit) applyPlayerDamage(hit, arrow);
+    }
+
+    if (!arrow.stuck && (tip.x < -100 || tip.x > BASE_WIDTH + 100 || tip.y > BASE_HEIGHT + 100 || arrow.life > 4.3)) {
+      arrow.stuck = true;
+      arrow.stuckTimer = 0.1;
+    }
+  }
+
+  state.enemyArrows = state.enemyArrows.filter((arrow) => !arrow.stuck || arrow.stuckTimer > 0);
+}
+
+function fireEnemyArrow() {
+  const joints = getEnemyJoints(0);
+  const origin = { x: joints.leftHand.x - 22, y: joints.leftHand.y - 10 };
+  const playerJoints = getPlayerJoints(0);
+  const target = {
+    x: playerJoints.neck.x + (Math.random() - 0.5) * 42,
+    y: playerJoints.neck.y + 28 + (Math.random() - 0.5) * 55
+  };
+  const dx = target.x - origin.x;
+  const speed = clamp(690 + state.levelIndex * 36, 690, 1040);
+  const travelTime = clamp(Math.abs(dx) / speed, 0.6, 1.55);
+  const vx = dx / travelTime;
+  const vy = (target.y - origin.y - 0.5 * GRAVITY * travelTime * travelTime) / travelTime;
+
+  state.enemyArrows.push({
+    x: origin.x,
+    y: origin.y,
+    vx,
+    vy,
+    ax: 0,
+    ay: GRAVITY,
+    angle: Math.atan2(vy, vx),
+    active: true,
+    stuck: false,
+    stuckTimer: 0,
+    life: 0,
+    trail: [],
+    team: "enemy"
+  });
+}
+
 function checkCollisions() {
   if (!state.arrow || state.arrow.stuck) return;
   const tip = getArrowTip(state.arrow);
@@ -585,6 +710,36 @@ function applyDamage(bodyPart) {
   }
 }
 
+function applyPlayerDamage(bodyPart, arrow) {
+  const tip = getArrowTip(arrow);
+  let damage = 14;
+  let label = "-14 HP";
+
+  if (bodyPart.part === "head") {
+    damage = 28;
+    label = "ENEMY HEADSHOT";
+    state.screenShake = 12;
+  } else if (bodyPart.part === "torso") {
+    damage = 20;
+    label = "-20 HP";
+    state.screenShake = 7;
+  }
+
+  state.playerHp = Math.max(0, state.playerHp - damage);
+  state.playerHitReact = 1;
+  state.streak = 0;
+  arrow.stuck = true;
+  arrow.stuckTimer = 0.55;
+  createParticles(tip.x, tip.y, "#ff4f5f");
+  showFeedback(label, tip.x, tip.y - 28, "#ff4f5f");
+  updateHud();
+
+  if (state.playerHp <= 0) {
+    state.mode = "gameOver";
+    setMessage("You Fell!", "Restart the level and line up a cleaner shot.", false);
+  }
+}
+
 function showFeedback(text, x, y, color = "#f4f7fb") {
   state.feedback.push({ text, x, y, color, life: 1.05, maxLife: 1.05 });
 }
@@ -633,6 +788,23 @@ function drawEnemyHpBar() {
   ctx.fillStyle = "rgba(7, 9, 15, 0.82)";
   ctx.fillRect(x, y, width, height);
   ctx.fillStyle = fill > 0.35 ? "#ff4f5f" : "#ffbf4d";
+  ctx.fillRect(x, y, width * fill, height);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
+  ctx.strokeRect(x, y, width, height);
+  ctx.restore();
+}
+
+function drawPlayerHpBar() {
+  const width = 142;
+  const height = 13;
+  const x = player.x - width / 2;
+  const y = player.platformY - 198;
+  const fill = state.playerHp / 100;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(7, 9, 15, 0.82)";
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = fill > 0.35 ? "#ffbf4d" : "#ff4f5f";
   ctx.fillRect(x, y, width * fill, height);
   ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
   ctx.strokeRect(x, y, width, height);
@@ -746,6 +918,7 @@ function updateStuckArrows(deltaTime) {
 function updateEffects(deltaTime) {
   state.screenShake = Math.max(0, state.screenShake - deltaTime * 46);
   state.playerRecoil = Math.max(0, state.playerRecoil - deltaTime * 6);
+  state.playerHitReact = Math.max(0, state.playerHitReact - deltaTime * 3.4);
 
   for (const mote of state.dust) {
     mote.x += mote.vx * deltaTime;
@@ -901,6 +1074,37 @@ function getEnemyHit(point) {
   return null;
 }
 
+function getPlayerJoints(idle = 0) {
+  const lean = -state.playerHitReact * 0.18;
+  return getStickmanJoints(player.x - state.playerRecoil * 10, player.platformY, player.scale, player.facing, idle, lean, false);
+}
+
+function getPlayerHit(point) {
+  const j = getPlayerJoints(0);
+  if (checkCircleCollision(point, j.head)) {
+    return { part: "head", distance: Math.hypot(point.x - j.head.x, point.y - j.head.y), radius: j.head.r };
+  }
+
+  if (checkSegmentCollision(point, j.neck, j.hip, 15 * j.scale)) return { part: "torso" };
+
+  const limbRadius = 11 * j.scale;
+  const limbs = [
+    [j.leftShoulder, j.leftElbow],
+    [j.leftElbow, j.leftHand],
+    [j.rightShoulder, j.rightElbow],
+    [j.rightElbow, j.rightHand],
+    [j.hip, j.leftKnee],
+    [j.leftKnee, j.leftFoot],
+    [j.hip, j.rightKnee],
+    [j.rightKnee, j.rightFoot]
+  ];
+
+  for (const [a, b] of limbs) {
+    if (checkSegmentCollision(point, a, b, limbRadius)) return { part: "limb" };
+  }
+  return null;
+}
+
 function getArrowTip(arrow) {
   return {
     x: arrow.x + Math.cos(arrow.angle) * (ARROW_LENGTH / 2),
@@ -950,6 +1154,7 @@ function updateHud() {
   scoreText.textContent = String(state.score);
   streakText.textContent = String(state.streak);
   attemptText.textContent = String(state.attempts);
+  playerHpText.textContent = String(Math.ceil(state.playerHp));
   enemyHpText.textContent = state.enemy ? `${Math.ceil(state.enemy.hp)}/${state.enemy.maxHp}` : "0";
 }
 

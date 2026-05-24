@@ -131,7 +131,7 @@ button.primary {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(5, minmax(74px, 1fr));
+  grid-template-columns: repeat(6, minmax(74px, 1fr));
   gap: 8px;
 }
 
@@ -160,6 +160,10 @@ button.primary {
 
 .hp-stat strong {
   color: var(--red);
+}
+
+.player-hp-stat strong {
+  color: var(--gold);
 }
 
 .actions {
@@ -275,7 +279,7 @@ canvas {
   }
 
   .stats {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .actions {
